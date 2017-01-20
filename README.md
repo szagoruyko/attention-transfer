@@ -3,7 +3,7 @@ Attention Transfer
 
 PyTorch code for "Paying More Attention to Attention: Improving the Performance of
 Convolutional Neural Networks via Attention Transfer" <https://arxiv.org/abs/1612.03928><br>
-The paper is under review as a conference submission at ICLR2017: https://openreview.net/forum?id=Sks9_ajex.
+The paper is under review as a conference submission at ICLR2017: https://openreview.net/forum?id=Sks9_ajex
 
 <img src=https://cloud.githubusercontent.com/assets/4953728/22037632/04f54a7e-dd09-11e6-9a6b-62133fbc1c29.png width=25%><img src=https://cloud.githubusercontent.com/assets/4953728/22037801/d06c526a-dd09-11e6-8986-55c69493a075.png width=75%>
 
