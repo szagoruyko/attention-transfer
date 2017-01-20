@@ -11,11 +11,11 @@ The paper is under review as a conference submission at ICLR2017: https://openre
 What's in this repo so far:
  * Activation-based AT code for CIFAR-10 experiments
  * Code for ImageNet experiments (ResNet-18-ResNet-34 student-teacher)
- * Pretrained with activation-based AT ResNet-18
 
 Coming:
  * grad-based AT
  * Scenes and CUB activation-based AT code
+ * Pretrained with activation-based AT ResNet-18
 
 The code uses PyTorch <https://pytorch.org>. Note that the original experiments were done
 using [torch-autograd](https://github.com/twitter/torch-autograd), we have so far validated that CIFAR-10 experiments are
@@ -87,9 +87,9 @@ We provide ResNet-18 pretrained model with activation based AT:
 |ResNet-18 | 30.4, 10.8 |
 |ResNet-18-ResNet-34-AT | 29.3, 10.0 |
 
-Download link:
+Download link: [coming]
 
-Model definition: [resnet-18-at.ipynb](resnet-18-at.ipynb)
+Model definition: [coming]
 
 Convergence plot:
 
