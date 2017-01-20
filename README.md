@@ -1,7 +1,7 @@
 Attention Transfer
 ==============
 
-Code for "Paying More Attention to Attention: Improving the Performance of
+PyTorch code for "Paying More Attention to Attention: Improving the Performance of
 Convolutional Neural Networks via Attention Transfer" <https://arxiv.org/abs/1612.03928><br>
 The paper is under review as a conference submission at ICLR2017: https://openreview.net/forum?id=Sks9_ajex.
 
