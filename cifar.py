@@ -29,7 +29,7 @@ import torch.backends.cudnn as cudnn
 from nested_dict import nested_dict
 from collections import OrderedDict
 from utils import conv_params, linear_params, bnparams, bnstats, \
-        distillation, l2_normalize
+        distillation, l2_normalize, cast, data_parallel
 
 cudnn.benchmark = True
 
@@ -210,27 +210,26 @@ def main():
             line = ff.readline()
             r = line.find('json_stats')
             info = json.loads(line[r+12:])
-        f_t = getattr(models, info['model'])(info['depth'], info['width'],
-                                             num_classes, 1)[0]
+        f_t = resnet(info['depth'], info['width'], num_classes)[0]
         model_data = torch.load(os.path.join('logs', opt.teacher_id, 'model.pt7'))
         params_t = model_data['params']
         stats_t = model_data['stats']
 
 
-    # merge teacher and student params and stats
-    params = {'student.'+k: v for k, v in params_s.iteritems()}
-    for k, v in params_t.iteritems():
-        v.requires_grad = False
-        params['teacher.'+k] = v
-    stats = {'student.'+k: v for k, v in stats_s.iteritems()}
-    stats.update({'teacher.'+k: v for k, v in stats_t.iteritems()})
+        # merge teacher and student params and stats
+        params = {'student.'+k: v for k, v in params_s.iteritems()}
+        for k, v in params_t.iteritems():
+            v.requires_grad = False
+            params['teacher.'+k] = v
+        stats = {'student.'+k: v for k, v in stats_s.iteritems()}
+        stats.update({'teacher.'+k: v for k, v in stats_t.iteritems()})
 
-
-    def f(inputs, params, stats, mode):
-        y_s, g_s = f_s(inputs, params, stats, mode, 'student.')
-        y_t, g_t = f_t(inputs, params, stats, False, 'teacher.')
-        return y_s, y_t, [at_loss(x, y) for x,y in zip(g_s, g_t)]
-
+        def f(inputs, params, stats, mode):
+            y_s, g_s = f_s(inputs, params, stats, mode, 'student.')
+            y_t, g_t = f_t(inputs, params, stats, False, 'teacher.')
+            return y_s, y_t, [at_loss(x, y) for x,y in zip(g_s, g_t)]
+    else:
+        f, params, stats = f_s, params_s, stats_s
 
     optimizable = [v for v in params.itervalues() if v.requires_grad]
     if opt.optim_method == 'SGD':
@@ -265,11 +264,15 @@ def main():
     def h(sample):
         inputs = Variable(cast(sample[0], opt.dtype))
         targets = Variable(cast(sample[1], 'long'))
-        y_s, y_t, loss_groups = data_parallel(f, inputs, params, stats, sample[2], np.arange(opt.ngpu))
-        loss_groups = [v.sum() for v in loss_groups]
-        [m.add(v.data[0]) for m,v in zip(meters_at, loss_groups)]
-        return distillation(y_s, y_t, targets, opt.temperature, opt.alpha) \
-                + opt.beta * sum(loss_groups), y_s
+        if opt.teacher_id != '':
+            y_s, y_t, loss_groups = data_parallel(f, inputs, params, stats, sample[2], np.arange(opt.ngpu))
+            loss_groups = [v.sum() for v in loss_groups]
+            [m.add(v.data[0]) for m,v in zip(meters_at, loss_groups)]
+            return distillation(y_s, y_t, targets, opt.temperature, opt.alpha) \
+                    + opt.beta * sum(loss_groups), y_s
+        else:
+            y = data_parallel(f, inputs, params, stats, sample[2], np.arange(opt.ngpu))[0]
+            return F.cross_entropy(y, targets), y
 
     def log(t):
         torch.save(dict(params=params, stats=stats, optimizer=optimizer, epoch=t['epoch']),

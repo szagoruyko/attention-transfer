@@ -3,6 +3,7 @@ import torch
 import torch.cuda.comm as comm
 from torch.nn.parallel._functions import Broadcast
 from torch.nn.parallel import scatter, parallel_apply, gather
+import torch.nn.functional as F
 
 def cast(params, dtype='float'):
     if isinstance(params, dict):
@@ -59,5 +60,5 @@ def distillation(y, teacher_scores, labels, T, alpha):
             + F.cross_entropy(y, labels) * (1. - alpha)
 
 def l2_normalize(x, dim=1, epsilon=1e-12):
-    return x * x.pow(2).sum(dim).cmax(epsilon).rsqrt().expand_as(x)
+    return x * x.pow(2).sum(dim).clamp(min=epsilon).rsqrt().expand_as(x)
 
