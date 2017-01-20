@@ -1,11 +1,16 @@
 """
-    PyTorch training code for Wide Residual Networks:
-    http://arxiv.org/abs/1605.07146
+    PyTorch training code for
+    "Paying More Attention to Attention: Improving the Performance of
+                Convolutional Neural Networks via Attention Transfer"
+    https://arxiv.org/abs/1612.03928
+    
+    This file includes:
+     * CIFAR ResNet and Wide ResNet training code which exactly reproduces
+       https://github.com/szagoruyko/wide-residual-networks
+     * Activation-based attention transfer
+     * Knowledge distillation implementation
 
-    The code reproduces *exactly* it's lua version:
-    https://github.com/szagoruyko/wide-residual-networks
-
-    2016 Sergey Zagoruyko
+    2017 Sergey Zagoruyko
 """
 
 import argparse

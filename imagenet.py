@@ -1,3 +1,17 @@
+"""
+    PyTorch training code for
+    "Paying More Attention to Attention: Improving the Performance of
+                Convolutional Neural Networks via Attention Transfer"
+    https://arxiv.org/abs/1612.03928
+    
+    This file includes:
+     * ImageNet ResNet training code that follows
+       https://github.com/facebook/fb.resnet.torch
+     * Activation-based attention transfer on ImageNet
+
+    2017 Sergey Zagoruyko
+"""
+
 import argparse
 import os
 import re
