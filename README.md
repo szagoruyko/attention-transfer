@@ -78,7 +78,7 @@ To train with activation-based AT do:
 python cifar.py --save logs/at_16_1_16_2 --teacher_id resnet_16_1_teacher --beta 1e+3
 ```
 
-To traing with KD:
+To train with KD:
 
 ```
 python cifar.py --save logs/kd_16_1_16_2 --teacher_id resnet_16_1_teacher --alpha 0.9
