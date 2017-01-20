@@ -31,6 +31,7 @@ parser.add_argument('--depth', default=18, type=int)
 parser.add_argument('--width', default=1, type=float)
 parser.add_argument('--imagenetpath', default='/home/zagoruys/ILSVRC2012', type=str)
 parser.add_argument('--nthread', default=4, type=int)
+parser.add_argument('--teacher_params', default='', type=str)
 
 # Training options
 parser.add_argument('--batchSize', default=256, type=int)
@@ -248,13 +249,11 @@ def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     epoch_step = json.loads(opt.epoch_step)
 
-    params_path = '/home/zagoruys/raid/Zoo/pytorch/resnet/resnet-%d-export.hkl'
-
     if not os.path.exists(opt.save):
         os.mkdir(opt.save)
 
     f_s, params_s, stats_s = define_student(opt.depth, opt.width)
-    f_t, params_t = define_teacher(params_path % 34)
+    f_t, params_t = define_teacher(opt.teacher_params)
     params = {'student.'+k: v for k, v in params_s.iteritems()}
     stats = {'student.'+k: v for k, v in stats_s.iteritems()}
     params.update({'teacher.'+k: v for k, v in params_t.iteritems()})
