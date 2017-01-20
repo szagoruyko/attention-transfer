@@ -5,15 +5,13 @@ import json
 import numpy as np
 import cv2
 import pandas as pd
+from nested_dict import nested_dict
 from collections import OrderedDict
 from tqdm import tqdm
 import hickle as hkl
 import torch
 import torchnet as tnt
-from torchnet import dataset, meter
 from torchnet.engine import Engine
-import torchvision
-import torchvision.transforms
 import torchvision.datasets
 from torchvision import cvtransforms
 from torch.autograd import Variable
@@ -21,7 +19,7 @@ from torch.backends import cudnn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from utils import conv_params, linear_params, bnparams, bnstats, \
-        distillation, l2_normalize
+        distillation, l2_normalize, data_parallel
 
 cudnn.benchmark = True
 
@@ -56,17 +54,9 @@ parser.add_argument('--ngpu', default=1, type=int,
         help='number of GPUs to use for training')
 parser.add_argument('--gpu_id', default='0', type=str,
         help='id(s) for CUDA_VISIBLE_DEVICES')
-opt = parser.parse_args()
-print 'parsed options:', vars(opt)
 
-os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_id
-torch.randn(8).cuda()
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-epoch_step = json.loads(opt.epoch_step)
 
-params_path = '/home/zagoruys/raid/Zoo/pytorch/resnet/resnet-%d-export.hkl'
-
-def get_iterator(mode):
+def get_iterator(opt, mode):
 
     def cvload(path):
         img = cv2.imread(path, cv2.IMREAD_COLOR)
@@ -156,6 +146,15 @@ def define_student(depth, width):
     widths = np.floor(np.asarray([64,128,256,512]) * width).astype(np.int)
     blocks = definitions[depth]
 
+
+    def batch_norm(x, params, stats, base, mode):
+        return F.batch_norm(x,
+                weight = params[base+'.weight'],
+                bias = params[base+'.bias'],
+                running_mean = stats[base+'.running_mean'],
+                running_var = stats[base+'.running_var'],
+                training = mode, momentum = 0.1, eps = 1e-5)
+
     def gen_block_params(ni, no):
         return {
                 'conv0': conv_params(ni, no, 3),
@@ -196,7 +195,7 @@ def define_student(depth, width):
     flat_stats = OrderedDict()
     for keys,v in params.iteritems_flat():
         if v is not None:
-            flat_params['.'.join(keys)] = Parameter(v)
+            flat_params['.'.join(keys)] = Variable(v, requires_grad=True)
     for keys,v in stats.iteritems_flat():
         flat_stats['.'.join(keys)] = v
 
@@ -232,6 +231,7 @@ def define_student(depth, width):
 
     return f, flat_params, flat_stats
 
+
 def at(x):
     return l2_normalize(x.pow(2).mean(1).view(x.size(0), -1))
 
@@ -240,11 +240,21 @@ def at_loss(x, y):
 
 
 def main():
+    opt = parser.parse_args()
+    print 'parsed options:', vars(opt)
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_id
+    torch.randn(8).cuda()
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    epoch_step = json.loads(opt.epoch_step)
+
+    params_path = '/home/zagoruys/raid/Zoo/pytorch/resnet/resnet-%d-export.hkl'
+
     if not os.path.exists(opt.save):
         os.mkdir(opt.save)
 
     f_s, params_s, stats_s = define_student(opt.depth, opt.width)
-    f_t, params_t = define_teacher(params_path % 18)
+    f_t, params_t = define_teacher(params_path % 34)
     params = {'student.'+k: v for k, v in params_s.iteritems()}
     stats = {'student.'+k: v for k, v in stats_s.iteritems()}
     params.update({'teacher.'+k: v for k, v in params_t.iteritems()})
@@ -252,8 +262,8 @@ def main():
     optimizable = [v for v in params.itervalues() if v.requires_grad]
     optimizer = torch.optim.SGD(optimizable, opt.lr, 0.9, weight_decay=opt.weightDecay)
 
-    iter_train = get_iterator(True)
-    iter_test = get_iterator(False)
+    iter_train = get_iterator(opt, True)
+    iter_test = get_iterator(opt, False)
 
     epoch = 0
     if opt.resume != '':
@@ -270,10 +280,10 @@ def main():
     n_parameters = sum([p.numel() for p in optimizable + stats.values()])
     print '\nTotal number of parameters:', n_parameters
 
-    meter_loss = meter.AverageValueMeter()
-    classacc = meter.ClassErrorMeter(topk=[1,5], accuracy=True)
-    timer_train = meter.TimeMeter('s')
-    timer_test = meter.TimeMeter('s')
+    meter_loss = tnt.meter.AverageValueMeter()
+    classacc = tnt.meter.ClassErrorMeter(topk=[1,5], accuracy=True)
+    timer_train = tnt.meter.TimeMeter('s')
+    timer_test = tnt.meter.TimeMeter('s')
     meters_at = [tnt.meter.AverageValueMeter() for i in range(4)]
 
     def f(inputs, params, stats, mode):
