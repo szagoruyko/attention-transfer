@@ -22,30 +22,80 @@ using [torch-autograd](https://github.com/twitter/torch-autograd), we have so fa
 *exactly* reproducible in PyTorch, and are in process of doing so for ImageNet (results are
 very slightly worse in PyTorch, due to hyperparameters).
 
-Another note on the implementation, for simplicity it uses
-[functional](https://github.com/pytorch/pytorch/blob/master/torch/nn/functional.py)
-interface instead of [modules](https://github.com/pytorch/pytorch/tree/master/torch/nn/modules),
-which is not yet documented as well.
-
 
 # Requrements
 
-First install [PyTorch](https://pytorch.org), then install [tnt](https://github.com/pytorch/tnt), and run `pip`:
+First install [PyTorch](https://pytorch.org), then install [torchnet](https://github.com/pytorch/tnt):
+
+```
+git clone https://github.com/pytorch/tnt
+cd tnt
+python setup.py install
+```
+
+Install [OpenCV](https://opencv.org) with Python bindings, and `torchvision`
+with OpenCV transforms:
+
+```
+git clone https://github.com/szagoruyko/vision
+cd vision; git checkout opencv
+python setup.py install
+```
+
+Finally, install other Python packages:
 
 ```
 pip install -r requirements.txt
 ```
 
-You will also need OpenCV with Python bindings installed.
-
 # Experiments
 
 ## CIFAR-10
 
+This section describes how to get the results in the table 1 of the paper.
+
 First, train teachers:
 
+```
+python cifar.py --save logs/resnet_40_1_teacher --depth 40 --width 1
+python cifar.py --save logs/resnet_16_2_teacher --depth 16 --width 2
+python cifar.py --save logs/resnet_40_2_teacher --depth 40 --width 2
+```
+
+To train with activation-based AT do:
+
+```
+python cifar.py --save logs/at_16_1_16_2 --teacher_id resnet_16_1_teacher --beta 1e+3
+```
+
+To traing with KD:
+
+```
+python cifar.py --save logs/kd_16_1_16_2 --teacher_id resnet_16_1_teacher --alpha 0.9
+```
+
+We plan to add AT+KD with decaying `beta` to get the best knowledge transfer results soon.
 
 ## ImageNet
+
+### Pretrained model
+
+We provide ResNet-18 pretrained model with activation based AT:
+
+| Model | val error |
+|:------|:---------:|
+|ResNet-18 | 30.4, 10.8 |
+|ResNet-18-ResNet-34-AT | 29.3, 10.0 |
+
+Download link:
+
+Model definition: [resnet-18-at.ipynb](resnet-18-at.ipynb)
+
+Convergence plot:
+
+<img width=50% src=https://cloud.githubusercontent.com/assets/4953728/22037957/5f9d493a-dd0a-11e6-9c68-8410a8c3c334.png>
+
+### Train from scratch
 
 Download pretrained weights for ResNet-34:
 
@@ -53,6 +103,5 @@ Download pretrained weights for ResNet-34:
 wget https://s3.amazonaws.com/pytorch/h5models/resnet-34-export.hkl
 ```
 
-Convergence plot:
-
-<img width=50% src=https://cloud.githubusercontent.com/assets/4953728/22037957/5f9d493a-dd0a-11e6-9c68-8410a8c3c334.png>
+See also [functional-zoo](https://github.com/szagoruyko/functional-zoo) for more
+information.
