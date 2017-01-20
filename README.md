@@ -106,7 +106,7 @@ wget https://s3.amazonaws.com/pytorch/h5models/resnet-34-export.hkl
 ```
 
 Prepare the data following [fb.resnet.torch](https://github.com/facebook/fb.resnet.torch)
-and run training (using 2 GPUs):
+and run training (e.g. using 2 GPUs):
 
 ```
 python imagenet.py --imagenetpath ~/ILSVRC2012 --depth 18 --width 1 \
