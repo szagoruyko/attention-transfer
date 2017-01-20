@@ -22,6 +22,16 @@ using [torch-autograd](https://github.com/twitter/torch-autograd), we have so fa
 *exactly* reproducible in PyTorch, and are in process of doing so for ImageNet (results are
 very slightly worse in PyTorch, due to hyperparameters).
 
+bibtex:
+
+```
+@article{Zagoruyko2016AT,
+    author = {Sergey Zagoruyko and Nikos Komodakis},
+    title = {Paying More Attention to Attention: Improving the Performance of
+             Convolutional Neural Networks via Attention Transfer},
+    url = {https://arxiv.org/abs/1612.03928},
+    year = {2016}}
+```
 
 ## Requrements
 
