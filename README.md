@@ -75,13 +75,13 @@ python cifar.py --save logs/resnet_40_2_teacher --depth 40 --width 2
 To train with activation-based AT do:
 
 ```
-python cifar.py --save logs/at_16_1_16_2 --teacher_id resnet_16_1_teacher --beta 1e+3
+python cifar.py --save logs/at_16_1_16_2 --teacher_id resnet_16_2_teacher --beta 1e+3
 ```
 
 To train with KD:
 
 ```
-python cifar.py --save logs/kd_16_1_16_2 --teacher_id resnet_16_1_teacher --alpha 0.9
+python cifar.py --save logs/kd_16_1_16_2 --teacher_id resnet_16_2_teacher --alpha 0.9
 ```
 
 We plan to add AT+KD with decaying `beta` to get the best knowledge transfer results soon.
