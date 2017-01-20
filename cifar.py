@@ -28,7 +28,8 @@ from torchnet.engine import Engine
 import torch.backends.cudnn as cudnn
 from nested_dict import nested_dict
 from collections import OrderedDict
-from utils import conv_params, linear_params, bnparams, bnstats
+from utils import conv_params, linear_params, bnparams, bnstats, \
+        distillation, l2_normalize
 
 cudnn.benchmark = True
 
@@ -172,13 +173,6 @@ def resnet(depth, width, num_classes):
 
     return f, flat_params, flat_stats
 
-
-def distillation(y, teacher_scores, labels, T, alpha):
-    return F.kl_div(F.log_softmax(y/T), F.softmax(teacher_scores/T)) * (T*T * 2. * alpha) \
-            + F.cross_entropy(y, labels) * (1. - alpha)
-
-def l2_normalize(x, dim=1, epsilon=1e-12):
-    return x * x.pow(2).sum(dim).cmax(epsilon).rsqrt().expand_as(x)
 
 def at(x):
     q = x.pow(2).mean(1).view(x.size(0), -1)

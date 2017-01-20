@@ -53,3 +53,11 @@ def data_parallel(f, input, params, stats, mode, device_ids, output_device=None)
     outputs = parallel_apply(replicas, inputs)
     return gather(outputs, output_device)
 
+
+def distillation(y, teacher_scores, labels, T, alpha):
+    return F.kl_div(F.log_softmax(y/T), F.softmax(teacher_scores/T)) * (T*T * 2. * alpha) \
+            + F.cross_entropy(y, labels) * (1. - alpha)
+
+def l2_normalize(x, dim=1, epsilon=1e-12):
+    return x * x.pow(2).sum(dim).cmax(epsilon).rsqrt().expand_as(x)
+
