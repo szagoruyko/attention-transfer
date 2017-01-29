@@ -273,7 +273,11 @@ def main():
     params.update({'teacher.'+k: v for k, v in params_t.iteritems()})
 
     optimizable = [v for v in params.itervalues() if v.requires_grad]
-    optimizer = torch.optim.SGD(optimizable, opt.lr, 0.9, weight_decay=opt.weightDecay)
+    def create_optimizer(opt, lr):
+        print 'creating optimizer with lr = ', lr
+        return torch.optim.SGD(optimizable, lr, 0.9, weight_decay=opt.weightDecay)
+
+    optimizer = create_optimizer(opt, opt.lr)
 
     iter_train = get_iterator(opt, True)
     iter_test = get_iterator(opt, False)
@@ -283,7 +287,7 @@ def main():
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
         params, stats = state_dict['params'], state_dict['stats']
-        optimizer = state_dict['optimizer']
+        optimizer.load_state_dict(state_dict['optimizer'])
 
     print '\nParameters:'
     print pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in params.items()])
@@ -314,7 +318,8 @@ def main():
                 + opt.beta * sum(loss_groups), y_s
 
     def log(t):
-        torch.save(dict(params=params, stats=stats, optimizer=optimizer, epoch=t['epoch']),
+        torch.save(dict(params=params, stats=stats,
+                        optimizer=optimizer.state_dict(), epoch=t['epoch']),
                    open(os.path.join(opt.save, 'model.pt7'), 'w'))
         z = vars(opt).copy(); z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
@@ -341,11 +346,8 @@ def main():
 
         epoch = state['epoch'] + 1
         if epoch in epoch_step:
-            for group in state['optimizer'].param_groups:
-                group['lr'] *= opt.lr_decay_ratio
-                for p in group['params']:
-                    param_state = state['optimizer'].state[id(p)]
-                    param_state['momentum_buffer'].zero_()
+            lr = state['optimizer'].param_groups[0]['lr']
+            optimizer = create_optimizer(opt, lr * opt.lr_decay_ratio)
 
     def on_end_epoch(state):
         train_loss = meter_loss.value()

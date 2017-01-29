@@ -237,17 +237,22 @@ def main():
         f, params, stats = f_s, params_s, stats_s
 
     optimizable = [v for v in params.itervalues() if v.requires_grad]
-    if opt.optim_method == 'SGD':
-        optimizer = torch.optim.SGD(optimizable, opt.lr, 0.9, weight_decay=opt.weightDecay)
-    elif opt.optim_method == 'Adam':
-        optimizer = torch.optim.Adam(optimizable, opt.lr)
+
+    def create_optimizer(opt, lr):
+        print 'creating optimizer with lr = ', lr
+        if opt.optim_method == 'SGD':
+            return torch.optim.SGD(optimizable, lr, 0.9, weight_decay=opt.weightDecay)
+        elif opt.optim_method == 'Adam':
+            return torch.optim.Adam(optimizable, lr)
+
+    optimizer = create_optimizer(opt, opt.lr)
 
     epoch = 0
     if opt.resume != '':
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
         params, stats = state_dict['params'], state_dict['stats']
-        optimizer = state_dict['optimizer']
+        optimizer.load_state_dict(state_dict['optimizer'])
 
     print '\nParameters:'
     print pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in params.items()])
@@ -280,7 +285,8 @@ def main():
             return F.cross_entropy(y, targets), y
 
     def log(t):
-        torch.save(dict(params=params, stats=stats, optimizer=optimizer, epoch=t['epoch']),
+        torch.save(dict(params=params, stats=stats,
+                        optimizer=optimizer.state_dict(), epoch=t['epoch']),
                 open(os.path.join(opt.save, 'model.pt7'), 'w'))
         z = vars(opt).copy(); z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
@@ -307,12 +313,8 @@ def main():
 
         epoch = state['epoch'] + 1
         if epoch in epoch_step:
-            for group in state['optimizer'].param_groups:
-                group['lr'] *= opt.lr_decay_ratio
-                if opt.optim_method == 'SGD':
-                    for p in group['params']:
-                        param_state = state['optimizer'].state[id(p)]
-                        param_state['momentum_buffer'].zero_()
+            lr = state['optimizer'].param_groups[0]['lr']
+            optimizer = create_optimizer(opt, lr * opt.lr_decay_ratio)
 
     def on_end_epoch(state):
         train_loss = meter_loss.value()
