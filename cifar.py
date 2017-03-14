@@ -224,8 +224,7 @@ def main():
         # merge teacher and student params and stats
         params = {'student.'+k: v for k, v in params_s.iteritems()}
         for k, v in params_t.iteritems():
-            v.requires_grad = False
-            params['teacher.'+k] = v
+            params['teacher.'+k] = Variable(v)
         stats = {'student.'+k: v for k, v in stats_s.iteritems()}
         stats.update({'teacher.'+k: v for k, v in stats_t.iteritems()})
 
@@ -251,7 +250,9 @@ def main():
     if opt.resume != '':
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
-        params, stats = state_dict['params'], state_dict['stats']
+        params_tensors, stats = state_dict['params'], state_dict['stats']
+        for k, v in params.iteritems():
+            v.data.copy_(params_tensors[k])
         optimizer.load_state_dict(state_dict['optimizer'])
 
     print '\nParameters:'
@@ -284,10 +285,12 @@ def main():
             y = data_parallel(f, inputs, params, stats, sample[2], np.arange(opt.ngpu))[0]
             return F.cross_entropy(y, targets), y
 
-    def log(t):
-        torch.save(dict(params=params, stats=stats,
-                        optimizer=optimizer.state_dict(), epoch=t['epoch']),
-                open(os.path.join(opt.save, 'model.pt7'), 'w'))
+    def log(t, state):
+        torch.save(dict(params={k: v.data for k, v in params.iteritems()},
+                        stats=stats,
+                        optimizer=state['optimizer'].state_dict(),
+                        epoch=t['epoch']),
+                   open(os.path.join(opt.save, 'model.pt7'), 'w'))
         z = vars(opt).copy(); z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
         with open(logname, 'a') as f:
@@ -314,7 +317,7 @@ def main():
         epoch = state['epoch'] + 1
         if epoch in epoch_step:
             lr = state['optimizer'].param_groups[0]['lr']
-            optimizer = create_optimizer(opt, lr * opt.lr_decay_ratio)
+            state['optimizer'] = create_optimizer(opt, lr * opt.lr_decay_ratio)
 
     def on_end_epoch(state):
         train_loss = meter_loss.value()
@@ -338,7 +341,7 @@ def main():
             "train_time": train_time,
             "test_time": timer_test.value(),
             "at_losses": [m.value() for m in meters_at],
-           })
+           }, state)
         print '==> id: %s (%d/%d), test_acc: \33[91m%.2f\033[0m' % \
                        (opt.save, state['epoch'], opt.epochs, test_acc)
 

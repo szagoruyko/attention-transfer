@@ -1,4 +1,5 @@
 import math
+from functools import partial
 import torch
 import torch.cuda.comm as comm
 from torch.nn.parallel._functions import Broadcast
@@ -48,9 +49,9 @@ def data_parallel(f, input, params, stats, mode, device_ids, output_device=None)
     params_replicas = replicate(params, lambda x: Broadcast(device_ids)(x))
     stats_replicas = replicate(stats, lambda x: comm.broadcast(x, device_ids))
 
-    replicas = [lambda x,p=p,s=s,mode=mode: f(x,p,s,mode)
-            for i,(p,s) in enumerate(zip(params_replicas, stats_replicas))]
-    inputs = scatter(input, device_ids)
+    replicas = [partial(f, params=p, stats=s, mode=mode)
+                for p,s in zip(params_replicas, stats_replicas)]
+    inputs = scatter([input], device_ids)
     outputs = parallel_apply(replicas, inputs)
     return gather(outputs, output_device)
 
