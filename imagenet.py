@@ -40,7 +40,6 @@ cudnn.benchmark = True
 parser = argparse.ArgumentParser(description='Wide Residual Networks')
 # Model options
 parser.add_argument('--dtype', default='float', type=str)
-parser.add_argument('--teacher_id', default='', type=str)
 parser.add_argument('--depth', default=18, type=int)
 parser.add_argument('--width', default=1, type=float)
 parser.add_argument('--imagenetpath', default='/home/zagoruys/ILSVRC2012', type=str)
@@ -133,10 +132,11 @@ def define_teacher(params_file):
                 o += F.conv2d(x, params[b_base + '_dim.weight'], stride=stride)
             else:
                 o += x
-            o = F.relu(o)
+            o = F.relu(o, inplace=True)
         return o
 
     def f(inputs, params, pr=''):
+        inputs = Variable(inputs.data, volatile=True)
         o = conv2d(inputs, params, pr+'conv0', 2, 3)
         o = F.relu(o, inplace=True)
         o = F.max_pool2d(o, 3, 2, 1)
@@ -147,7 +147,7 @@ def define_teacher(params_file):
         o = F.avg_pool2d(o_g3, 7, 1, 0)
         o = o.view(o.size(0), -1)
         o = F.linear(o, params[pr+'fc.weight'], params[pr+'fc.bias'])
-        return o, [o_g0, o_g1, o_g2, o_g3]
+        return Variable(o.data), [Variable(v.data) for v in [o_g0, o_g1, o_g2, o_g3]]
 
     return f, params
 
@@ -218,13 +218,13 @@ def define_student(depth, width):
 
     def block(x, params, stats, base, mode, stride):
         y = F.conv2d(x, params[base+'.conv0'], stride=stride, padding=1)
-        o1 = F.relu(batch_norm(y, params, stats, base+'.bn0', mode))
+        o1 = F.relu(batch_norm(y, params, stats, base+'.bn0', mode), inplace=True)
         z = F.conv2d(o1, params[base+'.conv1'], stride=1, padding=1)
         o2 = batch_norm(z, params, stats, base+'.bn1', mode)
         if base + '.convdim' in params:
-            return F.relu(o2 + F.conv2d(x, params[base+'.convdim'], stride=stride))
+            return F.relu(o2 + F.conv2d(x, params[base+'.convdim'], stride=stride), inplace=True)
         else:
-            return F.relu(o2 + x)
+            return F.relu(o2 + x, inplace=True)
 
     def group(o, params, stats, base, mode, stride, n):
         for i in range(n):
@@ -233,7 +233,7 @@ def define_student(depth, width):
 
     def f(input, params, stats, mode, pr=''):
         o = F.conv2d(input, params[pr+'conv0'], stride=2, padding=3)
-        o = F.relu(batch_norm(o, params, stats, pr+'bn0', mode))
+        o = F.relu(batch_norm(o, params, stats, pr+'bn0', mode), inplace=True)
         o = F.max_pool2d(o, 3, 2, 1)
         g0 = group(o, params, stats, pr+'group0', mode, 1, blocks[0])
         g1 = group(g0, params, stats, pr+'group1', mode, 2, blocks[1])
@@ -286,7 +286,9 @@ def main():
     if opt.resume != '':
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
-        params, stats = state_dict['params'], state_dict['stats']
+        params_tensors, stats = state_dict['params'], state_dict['stats']
+        for k, v in params.iteritems():
+            v.data.copy_(params_tensors[k])
         optimizer.load_state_dict(state_dict['optimizer'])
 
     print '\nParameters:'
@@ -317,9 +319,11 @@ def main():
         return distillation(y_s, y_t, targets, opt.temperature, opt.alpha) \
                 + opt.beta * sum(loss_groups), y_s
 
-    def log(t):
-        torch.save(dict(params=params, stats=stats,
-                        optimizer=optimizer.state_dict(), epoch=t['epoch']),
+    def log(t, state):
+        torch.save(dict(params={k: v.data for k, v in params.iteritems()},
+                        stats=stats,
+                        optimizer=state['optimizer'].state_dict(),
+                        epoch=t['epoch']),
                    open(os.path.join(opt.save, 'model.pt7'), 'w'))
         z = vars(opt).copy(); z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
@@ -347,7 +351,7 @@ def main():
         epoch = state['epoch'] + 1
         if epoch in epoch_step:
             lr = state['optimizer'].param_groups[0]['lr']
-            optimizer = create_optimizer(opt, lr * opt.lr_decay_ratio)
+            state['optimizer'] = create_optimizer(opt, lr * opt.lr_decay_ratio)
 
     def on_end_epoch(state):
         train_loss = meter_loss.value()
@@ -369,7 +373,7 @@ def main():
             "train_time": train_time,
             "test_time": timer_test.value(),
             "at_losses": [m.value() for m in meters_at],
-           })
+           }, state)
 
     engine = Engine()
     engine.hooks['on_sample'] = on_sample
