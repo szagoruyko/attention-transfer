@@ -34,23 +34,19 @@ bibtex:
     year = {2017}}
 ```
 
-## Requrements
+## Requirements
 
 First install [PyTorch](https://pytorch.org), then install [torchnet](https://github.com/pytorch/tnt):
 
 ```
-git clone https://github.com/pytorch/tnt
-cd tnt
-python setup.py install
+pip install git+https://github.com/pytorch/tnt.git@master
 ```
 
-Install [OpenCV](https://opencv.org) with Python bindings, and `torchvision`
+Install [OpenCV](https://opencv.org) with Python bindings (e.g. `conda install -c menpo opencv3`), and `torchvision`
 with OpenCV transforms:
 
 ```
-git clone https://github.com/szagoruyko/vision
-cd vision; git checkout opencv
-python setup.py install
+pip install git+https://github.com/szagoruyko/vision.git@opencv
 ```
 
 Finally, install other Python packages:
