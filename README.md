@@ -100,7 +100,7 @@ Model definition: <https://github.com/szagoruyko/functional-zoo/blob/master/resn
 
 Convergence plot:
 
-<img width=50% src=https://cloud.githubusercontent.com/assets/4953728/22037957/5f9d493a-dd0a-11e6-9c68-8410a8c3c334.png>
+<img width=50% src=https://cloud.githubusercontent.com/assets/4953728/25014604/c768572e-2078-11e7-81b5-752124c1b423.png>
 
 #### Train from scratch
 
