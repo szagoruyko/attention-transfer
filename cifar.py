@@ -17,7 +17,6 @@ import argparse
 import os
 import json
 import numpy as np
-import math
 import cv2
 from tqdm import tqdm
 import pandas as pd
@@ -52,10 +51,10 @@ parser.add_argument('--teacher_id', default='', type=str)
 parser.add_argument('--batchSize', default=128, type=int)
 parser.add_argument('--lr', default=0.1, type=float)
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
-        help='number of total epochs to run')
+                    help='number of total epochs to run')
 parser.add_argument('--weightDecay', default=0.0005, type=float)
 parser.add_argument('--epoch_step', default='[60,120,160]', type=str,
-        help='json list with epochs to drop lr on')
+                    help='json list with epochs to drop lr on')
 parser.add_argument('--lr_decay_ratio', default=0.2, type=float)
 parser.add_argument('--resume', default='', type=str)
 parser.add_argument('--optim_method', default='SGD', type=str)
@@ -67,40 +66,40 @@ parser.add_argument('--beta', default=0, type=float)
 # Device options
 parser.add_argument('--cuda', action='store_true')
 parser.add_argument('--save', default='', type=str,
-        help='save parameters and logs in this folder')
+                    help='save parameters and logs in this folder')
 parser.add_argument('--ngpu', default=1, type=int,
-        help='number of GPUs to use for training')
+                    help='number of GPUs to use for training')
 parser.add_argument('--gpu_id', default='0', type=str,
-        help='id(s) for CUDA_VISIBLE_DEVICES')
+                    help='id(s) for CUDA_VISIBLE_DEVICES')
 
 
 def create_dataset(opt, mode):
     convert = tnt.transform.compose([
         lambda x: x.astype(np.float32),
-        cvtransforms.Normalize([125.3, 123.0, 113.9], [63.0,  62.1,  66.7]),
+        cvtransforms.Normalize([125.3, 123.0, 113.9], [63.0, 62.1, 66.7]),
         lambda x: x.transpose(2,0,1).astype(np.float32),
         torch.from_numpy,
-        ])
+    ])
 
     train_transform = tnt.transform.compose([
         cvtransforms.RandomHorizontalFlip(),
         cvtransforms.Pad(opt.randomcrop_pad, cv2.BORDER_REFLECT),
         cvtransforms.RandomCrop(32),
         convert,
-        ])
+    ])
 
     ds = getattr(datasets, opt.dataset)(opt.data_root, train=mode, download=True)
     smode = 'train' if mode else 'test'
     ds = tnt.dataset.TensorDataset([
-        getattr(ds, smode+'_data').transpose(0,2,3,1),
+        getattr(ds, smode+'_data'),
         getattr(ds, smode+'_labels')])
     return ds.transform({0: train_transform if mode else convert})
 
 
 def resnet(depth, width, num_classes):
     assert (depth - 4) % 6 == 0, 'depth should be 6n+4'
-    n = int((depth - 4) / 6)
-    widths = np.floor(np.asarray([16.,32.,64.]) * width).astype(np.int)
+    n = (depth - 4) // 6
+    widths = torch.Tensor([16, 32, 64]).mul(width).int()
 
     def gen_block_params(ni, no):
         return {
