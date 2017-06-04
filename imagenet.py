@@ -19,7 +19,6 @@ import json
 import numpy as np
 import cv2
 import pandas as pd
-from nested_dict import nested_dict
 from collections import OrderedDict
 from tqdm import tqdm
 import hickle as hkl
@@ -32,8 +31,8 @@ from torch.autograd import Variable
 from torch.backends import cudnn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from utils import conv_params, linear_params, bnparams, bnstats, \
-        distillation, l2_normalize, data_parallel
+from utils import conv_params, linear_params, bnparams, bnstats, batch_norm, \
+        distillation, data_parallel, at_loss, flatten_params, flatten_stats
 
 cudnn.benchmark = True
 
@@ -161,14 +160,6 @@ def define_student(depth, width):
     blocks = definitions[depth]
 
 
-    def batch_norm(x, params, stats, base, mode):
-        return F.batch_norm(x,
-                weight = params[base+'.weight'],
-                bias = params[base+'.bias'],
-                running_mean = stats[base+'.running_mean'],
-                running_var = stats[base+'.running_var'],
-                training = mode, momentum = 0.1, eps = 1e-5)
-
     def gen_block_params(ni, no):
         return {
                 'conv0': conv_params(ni, no, 3),
@@ -186,34 +177,25 @@ def define_student(depth, width):
         return {'block%d'%i: {'bn0': bnstats(no), 'bn1': bnstats(no)}
                 for i in range(count)}
 
-    params = nested_dict({
-        'conv0': conv_params(3, 64, 7),
-        'bn0': bnparams(64),
-        'group0': gen_group_params(64, widths[0], blocks[0]),
-        'group1': gen_group_params(widths[0], widths[1], blocks[1]),
-        'group2': gen_group_params(widths[1], widths[2], blocks[2]),
-        'group3': gen_group_params(widths[2], widths[3], blocks[3]),
-        'fc': linear_params(widths[3], 1000),
-        })
+    params = {'conv0': conv_params(3, 64, 7),
+              'bn0': bnparams(64),
+              'group0': gen_group_params(64, widths[0], blocks[0]),
+              'group1': gen_group_params(widths[0], widths[1], blocks[1]),
+              'group2': gen_group_params(widths[1], widths[2], blocks[2]),
+              'group3': gen_group_params(widths[2], widths[3], blocks[3]),
+              'fc': linear_params(widths[3], 1000),
+             }
 
-    stats = nested_dict({
-        'bn0': bnstats(64),
-        'group0': gen_group_stats(widths[0], blocks[0]),
-        'group1': gen_group_stats(widths[1], blocks[1]),
-        'group2': gen_group_stats(widths[2], blocks[2]),
-        'group3': gen_group_stats(widths[3], blocks[3]),
-        })
+    stats = {'bn0': bnstats(64),
+             'group0': gen_group_stats(widths[0], blocks[0]),
+             'group1': gen_group_stats(widths[1], blocks[1]),
+             'group2': gen_group_stats(widths[2], blocks[2]),
+             'group3': gen_group_stats(widths[3], blocks[3]),
+            }
 
     # flatten parameters and additional buffers
-    flat_params = OrderedDict()
-    flat_stats = OrderedDict()
-    for keys,v in params.iteritems_flat():
-        if v is not None:
-            flat_params['.'.join(keys)] = Variable(v, requires_grad=True)
-    for keys,v in stats.iteritems_flat():
-        flat_stats['.'.join(keys)] = v
-
-
+    flat_params = flatten_params(params)
+    flat_stats = flatten_stats(stats)
 
     def block(x, params, stats, base, mode, stride):
         y = F.conv2d(x, params[base+'.conv0'], stride=stride, padding=1)
@@ -244,13 +226,6 @@ def define_student(depth, width):
         return o, [g0, g1, g2, g3]
 
     return f, flat_params, flat_stats
-
-
-def at(x):
-    return l2_normalize(x.pow(2).mean(1).view(x.size(0), -1))
-
-def at_loss(x, y):
-    return (at(x) - at(y)).pow(2).mean()
 
 
 def main():
