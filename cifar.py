@@ -23,7 +23,7 @@ import pandas as pd
 import torch
 import torch.optim
 import torch.utils.data
-from torchvision import cvtransforms
+import cvtransforms as T
 import torchvision.datasets as datasets
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -76,15 +76,15 @@ parser.add_argument('--gpu_id', default='0', type=str,
 def create_dataset(opt, mode):
     convert = tnt.transform.compose([
         lambda x: x.astype(np.float32),
-        cvtransforms.Normalize([125.3, 123.0, 113.9], [63.0, 62.1, 66.7]),
+        T.Normalize([125.3, 123.0, 113.9], [63.0, 62.1, 66.7]),
         lambda x: x.transpose(2,0,1).astype(np.float32),
         torch.from_numpy,
     ])
 
     train_transform = tnt.transform.compose([
-        cvtransforms.RandomHorizontalFlip(),
-        cvtransforms.Pad(opt.randomcrop_pad, cv2.BORDER_REFLECT),
-        cvtransforms.RandomCrop(32),
+        T.RandomHorizontalFlip(),
+        T.Pad(opt.randomcrop_pad, cv2.BORDER_REFLECT),
+        T.RandomCrop(32),
         convert,
     ])
 

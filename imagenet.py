@@ -27,7 +27,7 @@ import torch
 import torchnet as tnt
 from torchnet.engine import Engine
 import torchvision.datasets
-from torchvision import cvtransforms
+import cvtransforms as T
 from torch.autograd import Variable
 from torch.backends import cudnn
 import torch.nn.functional as F
@@ -79,8 +79,7 @@ def get_iterator(opt, mode):
 
     convert = tnt.transform.compose([
             lambda x: x.astype(np.float32) / 255.0,
-            cvtransforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                   std=[0.229, 0.224, 0.225]),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             lambda x: x.transpose(2,0,1).astype(np.float32),
             torch.from_numpy,
             ])
@@ -88,15 +87,15 @@ def get_iterator(opt, mode):
     if mode:
         traindir = os.path.join(opt.imagenetpath, 'train')
         ds = torchvision.datasets.ImageFolder(traindir, tnt.transform.compose([
-            cvtransforms.RandomSizedCrop(224),
-            cvtransforms.RandomHorizontalFlip(),
+            T.RandomSizedCrop(224),
+            T.RandomHorizontalFlip(),
             convert,
             ]), loader = cvload)
     else:
         valdir = os.path.join(opt.imagenetpath, 'val')
         ds = torchvision.datasets.ImageFolder(valdir, tnt.transform.compose([
-            cvtransforms.Scale(256),
-            cvtransforms.CenterCrop(224),
+            T.Scale(256),
+            T.CenterCrop(224),
             convert,
             ]), loader = cvload)
     return DataLoader(ds, batch_size=opt.batchSize, shuffle=mode,
