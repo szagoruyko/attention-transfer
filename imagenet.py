@@ -110,10 +110,10 @@ def define_teacher(params_file):
     params_hkl = hkl.load(params_file)
 
     params = OrderedDict({k: Variable(torch.from_numpy(v).cuda())
-                          for k, v in params_hkl.iteritems()})
+                          for k, v in params_hkl.items()})
 
     blocks = [sum([re.match('group%d.block\d+.conv0.weight'%j, k) is not None
-                   for k in params.keys()]) for j in range(4)]
+                   for k in list(params.keys())]) for j in range(4)]
 
     def conv2d(input, params, base, stride=1, pad=0):
         return F.conv2d(input, params[base + '.weight'], params[base + '.bias'], stride, pad)
@@ -155,7 +155,7 @@ def define_student(depth, width):
             18: [2,2,2,2],
             34: [3,4,6,5],
             }
-    assert depth in definitions.keys()
+    assert depth in list(definitions.keys())
     widths = np.floor(np.asarray([64,128,256,512]) * width).astype(np.int)
     blocks = definitions[depth]
 
@@ -230,7 +230,7 @@ def define_student(depth, width):
 
 def main():
     opt = parser.parse_args()
-    print 'parsed options:', vars(opt)
+    print('parsed options:', vars(opt))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_id
     torch.randn(8).cuda()
@@ -242,13 +242,13 @@ def main():
 
     f_s, params_s, stats_s = define_student(opt.depth, opt.width)
     f_t, params_t = define_teacher(opt.teacher_params)
-    params = {'student.'+k: v for k, v in params_s.iteritems()}
-    stats = {'student.'+k: v for k, v in stats_s.iteritems()}
-    params.update({'teacher.'+k: v for k, v in params_t.iteritems()})
+    params = {'student.'+k: v for k, v in params_s.items()}
+    stats = {'student.'+k: v for k, v in stats_s.items()}
+    params.update({'teacher.'+k: v for k, v in params_t.items()})
 
-    optimizable = [v for v in params.itervalues() if v.requires_grad]
+    optimizable = [v for v in params.values() if v.requires_grad]
     def create_optimizer(opt, lr):
-        print 'creating optimizer with lr = ', lr
+        print('creating optimizer with lr = ', lr)
         return torch.optim.SGD(optimizable, lr, 0.9, weight_decay=opt.weightDecay)
 
     optimizer = create_optimizer(opt, opt.lr)
@@ -261,17 +261,17 @@ def main():
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
         params_tensors, stats = state_dict['params'], state_dict['stats']
-        for k, v in params.iteritems():
+        for k, v in params.items():
             v.data.copy_(params_tensors[k])
         optimizer.load_state_dict(state_dict['optimizer'])
 
-    print '\nParameters:'
-    print pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in params.items()])
-    print '\nAdditional buffers:'
-    print pd.DataFrame([(key, v.size(), torch.typename(v)) for key,v in stats.items()])
+    print('\nParameters:')
+    print(pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in list(params.items())]))
+    print('\nAdditional buffers:')
+    print(pd.DataFrame([(key, v.size(), torch.typename(v)) for key,v in list(stats.items())]))
 
-    n_parameters = sum([p.numel() for p in optimizable + stats.values()])
-    print '\nTotal number of parameters:', n_parameters
+    n_parameters = sum([p.numel() for p in optimizable + list(stats.values())])
+    print('\nTotal number of parameters:', n_parameters)
 
     meter_loss = tnt.meter.AverageValueMeter()
     classacc = tnt.meter.ClassErrorMeter(topk=[1,5], accuracy=True)
@@ -294,7 +294,7 @@ def main():
                 + opt.beta * sum(loss_groups), y_s
 
     def log(t, state):
-        torch.save(dict(params={k: v.data for k, v in params.iteritems()},
+        torch.save(dict(params={k: v.data for k, v in params.items()},
                         stats=stats,
                         optimizer=state['optimizer'].state_dict(),
                         epoch=t['epoch']),
@@ -303,7 +303,7 @@ def main():
         logname = os.path.join(opt.save, 'log.txt')
         with open(logname, 'a') as f:
             f.write('json_stats: ' + json.dumps(z) + '\n')
-        print z
+        print(z)
 
     def on_sample(state):
         state['sample'].append(state['train'])
@@ -337,7 +337,7 @@ def main():
 
         engine.test(h, iter_test)
         
-        print log({
+        print(log({
             "train_loss": train_loss[0],
             "train_acc": train_acc,
             "test_loss": meter_loss.value()[0],
@@ -347,7 +347,7 @@ def main():
             "train_time": train_time,
             "test_time": timer_test.value(),
             "at_losses": [m.value() for m in meters_at],
-           }, state)
+           }, state))
 
     engine = Engine()
     engine.hooks['on_sample'] = on_sample
