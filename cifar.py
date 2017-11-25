@@ -163,7 +163,7 @@ def resnet(depth, width, num_classes):
 
 def main():
     opt = parser.parse_args()
-    print 'parsed options:', vars(opt)
+    print('parsed options:', vars(opt))
     epoch_step = json.loads(opt.epoch_step)
     num_classes = 10 if opt.dataset == 'CIFAR10' else 100
 
@@ -196,11 +196,11 @@ def main():
 
 
         # merge teacher and student params and stats
-        params = {'student.'+k: v for k, v in params_s.iteritems()}
-        for k, v in params_t.iteritems():
+        params = {'student.'+k: v for k, v in params_s.items()}
+        for k, v in params_t.items():
             params['teacher.'+k] = Variable(v)
-        stats = {'student.'+k: v for k, v in stats_s.iteritems()}
-        stats.update({'teacher.'+k: v for k, v in stats_t.iteritems()})
+        stats = {'student.'+k: v for k, v in stats_s.items()}
+        stats.update({'teacher.'+k: v for k, v in stats_t.items()})
 
         def f(inputs, params, stats, mode):
             y_s, g_s = f_s(inputs, params, stats, mode, 'student.')
@@ -209,10 +209,10 @@ def main():
     else:
         f, params, stats = f_s, params_s, stats_s
 
-    optimizable = [v for v in params.itervalues() if v.requires_grad]
+    optimizable = [v for v in params.values() if v.requires_grad]
 
     def create_optimizer(opt, lr):
-        print 'creating optimizer with lr = ', lr
+        print('creating optimizer with lr = ', lr)
         if opt.optim_method == 'SGD':
             return torch.optim.SGD(optimizable, lr, 0.9, weight_decay=opt.weightDecay)
         elif opt.optim_method == 'Adam':
@@ -225,17 +225,17 @@ def main():
         state_dict = torch.load(opt.resume)
         epoch = state_dict['epoch']
         params_tensors, stats = state_dict['params'], state_dict['stats']
-        for k, v in params.iteritems():
+        for k, v in params.items():
             v.data.copy_(params_tensors[k])
         optimizer.load_state_dict(state_dict['optimizer'])
 
-    print '\nParameters:'
-    print pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in params.items()])
-    print '\nAdditional buffers:'
-    print pd.DataFrame([(key, v.size(), torch.typename(v)) for key,v in stats.items()])
+    print('\nParameters:')
+    print(pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in list(params.items())]))
+    print('\nAdditional buffers:')
+    print(pd.DataFrame([(key, v.size(), torch.typename(v)) for key,v in list(stats.items())]))
 
-    n_parameters = sum(p.numel() for p in params_s.values())
-    print '\nTotal number of parameters:', n_parameters
+    n_parameters = sum(p.numel() for p in list(params_s.values()))
+    print('\nTotal number of parameters:', n_parameters)
 
     meter_loss = tnt.meter.AverageValueMeter()
     classacc = tnt.meter.ClassErrorMeter(accuracy=True)
@@ -260,7 +260,7 @@ def main():
             return F.cross_entropy(y, targets), y
 
     def log(t, state):
-        torch.save(dict(params={k: v.data for k, v in params.iteritems()},
+        torch.save(dict(params={k: v.data for k, v in params.items()},
                         stats=stats,
                         optimizer=state['optimizer'].state_dict(),
                         epoch=t['epoch']),
@@ -269,7 +269,7 @@ def main():
         logname = os.path.join(opt.save, 'log.txt')
         with open(logname, 'a') as f:
             f.write('json_stats: ' + json.dumps(z) + '\n')
-        print z
+        print(z)
 
     def on_sample(state):
         state['sample'].append(state['train'])
@@ -304,7 +304,7 @@ def main():
         engine.test(h, test_loader)
         
         test_acc = classacc.value()[0]
-        print log({
+        print(log({
             "train_loss": train_loss[0],
             "train_acc": train_acc[0],
             "test_loss": meter_loss.value()[0],
@@ -315,9 +315,9 @@ def main():
             "train_time": train_time,
             "test_time": timer_test.value(),
             "at_losses": [m.value() for m in meters_at],
-           }, state)
-        print '==> id: %s (%d/%d), test_acc: \33[91m%.2f\033[0m' % \
-                       (opt.save, state['epoch'], opt.epochs, test_acc)
+           }, state))
+        print('==> id: %s (%d/%d), test_acc: \33[91m%.2f\033[0m' % \
+                       (opt.save, state['epoch'], opt.epochs, test_acc))
 
     engine = Engine()
     engine.hooks['on_sample'] = on_sample
