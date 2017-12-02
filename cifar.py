@@ -264,7 +264,7 @@ def main():
                         stats=stats,
                         optimizer=state['optimizer'].state_dict(),
                         epoch=t['epoch']),
-                   open(os.path.join(opt.save, 'model.pt7'), 'w'))
+                   os.path.join(opt.save, 'model.pt7'))
         z = vars(opt).copy(); z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
         with open(logname, 'a') as f:
