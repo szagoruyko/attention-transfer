@@ -42,7 +42,7 @@ First install [PyTorch](https://pytorch.org), then install [torchnet](https://gi
 pip install git+https://github.com/pytorch/tnt.git@master
 ```
 
-Then install [OpenCV](https://opencv.org) with Python bindings (e.g. `conda install -c menpo opencv3`), and other Python packages:
+then install other Python packages:
 
 ```
 pip install -r requirements.txt
