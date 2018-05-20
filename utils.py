@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 def distillation(y, teacher_scores, labels, T, alpha):
-    return F.kl_div(F.log_softmax(y/T), F.softmax(teacher_scores/T)) * (T*T * 2. * alpha) \
+    return F.kl_div(F.log_softmax(y/T, dim=1), F.softmax(teacher_scores/T, dim=1)) * (T*T * 2. * alpha) \
             + F.cross_entropy(y, labels) * (1. - alpha)
 
 
