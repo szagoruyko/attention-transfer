@@ -87,7 +87,7 @@ We provide ResNet-18 pretrained model with activation based AT:
 |ResNet-18 | 30.4, 10.8 |
 |ResNet-18-ResNet-34-AT | 29.3, 10.0 |
 
-Download link: <https://www.dropbox.com/s/z092wmrgyqn4ys5/resnet-18-at-export.hkl?dl=0>
+Download link: <https://s3.amazonaws.com/modelzoo-networks/resnet-18-at-export.pth>
 
 Model definition: <https://github.com/szagoruyko/functional-zoo/blob/master/resnet-18-at-export.ipynb>
 
