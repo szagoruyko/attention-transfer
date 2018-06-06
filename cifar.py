@@ -218,13 +218,13 @@ def main():
         inputs = utils.cast(sample[0], opt.dtype).detach()
         targets = utils.cast(sample[1], 'long')
         if opt.teacher_id != '':
-            y_s, y_t, loss_groups = utils.data_parallel(f, inputs, params, sample[2], np.arange(opt.ngpu))
+            y_s, y_t, loss_groups = utils.data_parallel(f, inputs, params, sample[2], range(opt.ngpu))
             loss_groups = [v.sum() for v in loss_groups]
             [m.add(v.item()) for m, v in zip(meters_at, loss_groups)]
             return utils.distillation(y_s, y_t, targets, opt.temperature, opt.alpha) \
                    + opt.beta * sum(loss_groups), y_s
         else:
-            y = utils.data_parallel(f, inputs, params, sample[2], np.arange(opt.ngpu))[0]
+            y = utils.data_parallel(f, inputs, params, sample[2], range(opt.ngpu))[0]
             return F.cross_entropy(y, targets), y
 
     def log(t, state):
