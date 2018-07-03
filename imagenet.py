@@ -17,17 +17,18 @@ import os
 import re
 import json
 import numpy as np
-import pandas as pd
+from torch.optim import SGD
 from tqdm import tqdm
 import torch
 import torchnet as tnt
 from torchnet.engine import Engine
-import torchvision.datasets
+from torchvision.datasets import ImageFolder
 import torchvision.transforms as T
 from torch.backends import cudnn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import utils
+from collections import OrderedDict
 
 cudnn.benchmark = True
 
@@ -73,7 +74,7 @@ def get_iterator(imagenetpath, batch_size, nthread, mode):
     print("| setting up data loader...")
     if mode:
         traindir = os.path.join(imagenetpath, 'train')
-        ds = torchvision.datasets.ImageFolder(traindir, T.Compose([
+        ds = ImageFolder(traindir, T.Compose([
             T.RandomResizedCrop(224),
             T.RandomHorizontalFlip(),
             T.ToTensor(),
@@ -81,7 +82,7 @@ def get_iterator(imagenetpath, batch_size, nthread, mode):
         ]))
     else:
         valdir = os.path.join(imagenetpath, 'val')
-        ds = torchvision.datasets.ImageFolder(valdir, T.Compose([
+        ds = ImageFolder(valdir, T.Compose([
             T.Resize(256),
             T.CenterCrop(224),
             T.ToTensor(),
@@ -100,7 +101,7 @@ def define_teacher(params_file):
     """
     params = torch.load(params_file)
 
-    params = {k: v.cuda() for k, v in params.items()}
+    params = {k: p.cuda() for k, p in params.items()}
 
     blocks = [sum([re.match('group%d.block\d+.conv0.weight'%j, k) is not None
                    for k in list(params.keys())]) for j in range(4)]
@@ -134,44 +135,39 @@ def define_teacher(params_file):
         o = F.avg_pool2d(o_g3, 7, 1, 0)
         o = o.view(o.size(0), -1)
         o = F.linear(o, params[pr+'fc.weight'], params[pr+'fc.bias'])
-        return o, [o_g0, o_g1, o_g2, o_g3]
+        return o, (o_g0, o_g1, o_g2, o_g3)
 
     return f, params
 
 
 def define_student(depth, width):
-    definitions = {
-        18: [2, 2, 2, 2],
-        34: [3, 4, 6, 5],
-    }
+    definitions = {18: [2,2,2,2],
+                   34: [3,4,6,5]}
     assert depth in list(definitions.keys())
-    widths = [int(d * width) for d in ([64, 128, 256, 512])]
+    widths = [int(w * width) for w in (64, 128, 256, 512)]
     blocks = definitions[depth]
 
     def gen_block_params(ni, no):
-        return {
-            'conv0': utils.conv_params(ni, no, 3),
-            'conv1': utils.conv_params(no, no, 3),
-            'bn0': utils.bnparams(no),
-            'bn1': utils.bnparams(no),
-            'convdim': utils.conv_params(ni, no, 1) if ni != no else None,
-        }
+        return {'conv0': utils.conv_params(ni, no, 3),
+                'conv1': utils.conv_params(no, no, 3),
+                'bn0': utils.bnparams(no),
+                'bn1': utils.bnparams(no),
+                'convdim': utils.conv_params(ni, no, 1) if ni != no else None,
+                }
 
     def gen_group_params(ni, no, count):
-        return {'block%d' % i: gen_block_params(ni if i == 0 else no, no)
+        return {'block%d'%i: gen_block_params(ni if i==0 else no, no)
                 for i in range(count)}
 
-    params = {'conv0': utils.conv_params(3, 64, 7),
-              'bn0': utils.bnparams(64),
-              'group0': gen_group_params(64, widths[0], blocks[0]),
-              'group1': gen_group_params(widths[0], widths[1], blocks[1]),
-              'group2': gen_group_params(widths[1], widths[2], blocks[2]),
-              'group3': gen_group_params(widths[2], widths[3], blocks[3]),
-              'fc': utils.linear_params(widths[3], 1000),
-             }
-
-    # flatten parameters and additional buffers
-    flat_params = utils.flatten(params)
+    flat_params = OrderedDict(utils.flatten({
+        'conv0': utils.conv_params(3, 64, 7),
+        'bn0': utils.bnparams(64),
+        'group0': gen_group_params(64, widths[0], blocks[0]),
+        'group1': gen_group_params(widths[0], widths[1], blocks[1]),
+        'group2': gen_group_params(widths[1], widths[2], blocks[2]),
+        'group3': gen_group_params(widths[2], widths[3], blocks[3]),
+        'fc': utils.linear_params(widths[3], 1000),
+    }))
 
     utils.set_requires_grad_except_bn_(flat_params)
 
@@ -213,6 +209,8 @@ def main():
 
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_id
 
+    epoch_step = json.loads(opt.epoch_step)
+
     if not os.path.exists(opt.save):
         os.mkdir(opt.save)
 
@@ -221,10 +219,12 @@ def main():
     params = {'student.'+k: v for k, v in params_s.items()}
     params.update({'teacher.'+k: v for k, v in params_t.items()})
 
+    params = OrderedDict((k, p.cuda().detach().requires_grad_(p.requires_grad)) for k, p in params.items())
+
+    optimizable = [v for v in params.values() if v.requires_grad]
     def create_optimizer(opt, lr):
         print('creating optimizer with lr = ', lr)
-        return torch.optim.SGD([v for v in params.values() if v.requires_grad],
-                               lr, momentum=0.9, weight_decay=opt.weight_decay)
+        return SGD(optimizable, lr, momentum=0.9, weight_decay=opt.weight_decay)
 
     optimizer = create_optimizer(opt, opt.lr)
 
@@ -241,9 +241,10 @@ def main():
         optimizer.load_state_dict(state_dict['optimizer'])
 
     print('\nParameters:')
-    print(pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key, v in list(params.items())]))
+    utils.print_tensor_dict(params)
 
-    n_parameters = sum(p.numel() for p in params.values() if p.requires_grad)
+
+    n_parameters = sum(p.numel() for p in optimizable)
     print('\nTotal number of parameters:', n_parameters)
 
     meter_loss = tnt.meter.AverageValueMeter()
@@ -254,17 +255,19 @@ def main():
 
     def f(inputs, params, mode):
         y_s, g_s = f_s(inputs, params, mode, 'student.')
-        y_t, g_t = f_t(inputs, params, 'teacher.')
+        with torch.no_grad():
+            y_t, g_t = f_t(inputs, params, 'teacher.')
         return y_s, y_t, [utils.at_loss(x, y) for x, y in zip(g_s, g_t)]
 
     def h(sample):
-        inputs = sample[0].cuda()
-        targets = sample[1].cuda().long()
-        y_s, y_t, loss_groups = utils.data_parallel(f, inputs, params, sample[2], np.arange(opt.ngpu))
+        inputs, targets, mode = sample
+        inputs = inputs.cuda().detach()
+        targets = targets.cuda().long().detach()
+        y_s, y_t, loss_groups = utils.data_parallel(f, inputs, params, mode, range(opt.ngpu))
         loss_groups = [v.sum() for v in loss_groups]
-        [m.add(v.item()) for m, v in zip(meters_at, loss_groups)]
+        [m.add(v.item()) for m,v in zip(meters_at, loss_groups)]
         return utils.distillation(y_s, y_t, targets, opt.temperature, opt.alpha) \
-               + opt.beta * sum(loss_groups), y_s
+                + opt.beta * sum(loss_groups), y_s
 
     def log(t, state):
         torch.save(dict(params={k: v.data for k, v in params.items()},
@@ -282,7 +285,10 @@ def main():
 
     def on_forward(state):
         classacc.add(state['output'].data, state['sample'][1])
-        meter_loss.add(state['loss'].item())
+        loss = state['loss'].item()
+        meter_loss.add(loss)
+        if state['train']:
+            state['iterator'].set_postfix(loss=loss)
 
     def on_start(state):
         state['epoch'] = epoch
@@ -292,7 +298,7 @@ def main():
         meter_loss.reset()
         timer_train.reset()
         [meter.reset() for meter in meters_at]
-        state['iterator'] = tqdm(iter_train)
+        state['iterator'] = tqdm(iter_train, dynamic_ncols=True)
 
         epoch = state['epoch'] + 1
         if epoch in epoch_step:
@@ -308,7 +314,7 @@ def main():
         timer_test.reset()
 
         engine.test(h, iter_test)
-        
+
         print(log({
             "train_loss": train_loss[0],
             "train_acc": train_acc,
@@ -327,7 +333,7 @@ def main():
     engine.hooks['on_start_epoch'] = on_start_epoch
     engine.hooks['on_end_epoch'] = on_end_epoch
     engine.hooks['on_start'] = on_start
-    engine.train(h, iter_train, opt.epochs, optimizer) 
+    engine.train(h, iter_train, opt.epochs, optimizer)
 
 
 if __name__ == '__main__':
