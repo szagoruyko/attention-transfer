@@ -18,10 +18,8 @@ import os
 import json
 import numpy as np
 from tqdm import tqdm
-import pandas as pd
 import torch
-import torch.optim
-import torch.utils.data
+from torch.optim import SGD
 import torchvision.transforms as T
 from torchvision import datasets
 import torch.nn.functional as F
@@ -185,8 +183,8 @@ def main():
 
     def create_optimizer(opt, lr):
         print('creating optimizer with lr = ', lr)
-        return torch.optim.SGD([v for v in params.values() if v.requires_grad], lr,
-                               momentum=0.9, weight_decay=opt.weight_decay)
+        return SGD((v for v in params.values() if v.requires_grad), lr,
+                   momentum=0.9, weight_decay=opt.weight_decay)
 
     optimizer = create_optimizer(opt, opt.lr)
 
@@ -200,7 +198,7 @@ def main():
         optimizer.load_state_dict(state_dict['optimizer'])
 
     print('\nParameters:')
-    print(pd.DataFrame([(key, v.size(), torch.typename(v.data)) for key,v in list(params.items())]))
+    print_tensor_dict(params)
 
     n_parameters = sum(p.numel() for p in list(params_s.values()))
     print('\nTotal number of parameters:', n_parameters)
@@ -269,7 +267,7 @@ def main():
         timer_test.reset()
 
         engine.test(h, test_loader)
-        
+
         test_acc = classacc.value()[0]
         print(log({
             "train_loss": train_loss,
@@ -292,7 +290,7 @@ def main():
     engine.hooks['on_start_epoch'] = on_start_epoch
     engine.hooks['on_end_epoch'] = on_end_epoch
     engine.hooks['on_start'] = on_start
-    engine.train(h, train_loader, opt.epochs, optimizer) 
+    engine.train(h, train_loader, opt.epochs, optimizer)
 
 
 if __name__ == '__main__':

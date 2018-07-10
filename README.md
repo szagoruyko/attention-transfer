@@ -102,7 +102,7 @@ Download pretrained weights for ResNet-34
 information):
 
 ```
-wget https://s3.amazonaws.com/pytorch/h5models/resnet-34-export.hkl
+wget https://s3.amazonaws.com/modelzoo-networks/resnet-34-export.pth
 ```
 
 Prepare the data following [fb.resnet.torch](https://github.com/facebook/fb.resnet.torch)
