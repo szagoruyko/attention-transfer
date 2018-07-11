@@ -159,7 +159,7 @@ def main():
     f_s, params_s = resnet(opt.depth, opt.width, num_classes)
 
     # deal with teacher
-    if opt.teacher_id != '':
+    if opt.teacher_id:
         with open(os.path.join('logs', opt.teacher_id, 'log.txt'), 'r') as ff:
             line = ff.readline()
             r = line.find('json_stats')
@@ -198,7 +198,7 @@ def main():
         optimizer.load_state_dict(state_dict['optimizer'])
 
     print('\nParameters:')
-    print_tensor_dict(params)
+    utils.print_tensor_dict(params)
 
     n_parameters = sum(p.numel() for p in list(params_s.values()))
     print('\nTotal number of parameters:', n_parameters)
