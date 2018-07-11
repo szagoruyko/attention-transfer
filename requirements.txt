@@ -1,8 +1,6 @@
 tqdm
 nested_dict
-pandas
 numpy
 torch
 torchnet
 torchvision
-tqdm
